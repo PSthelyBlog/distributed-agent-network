@@ -47,12 +47,17 @@ This system implements a hierarchical agent architecture where a main orchestrat
 ### 1. Clone and Setup
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/PSthelyBlog/distributed-agent-network
 cd distributed-agent-network
 
 # Setup development environment
 ./scripts/setup-dev.sh
 source .venv/bin/activate
+
+# Or manually
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
 # Check prerequisites
 ./scripts/check-prerequisites.sh
