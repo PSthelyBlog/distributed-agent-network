@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "Task(*)"
+    ],
+    "deny": []
+  },
+  "model": "sonnet",
+  "contextLimit": 100000,
+  "timeoutSeconds": 600,
+  "environment": {
+    "AGENT_ROLE": "main",
+    "PYTHONPATH": "/lib"
+  }
+}

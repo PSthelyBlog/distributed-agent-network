@@ -1,0 +1,57 @@
+FROM node:20-slim
+
+# Metadata
+LABEL maintainer="Distributed Agent Network"
+LABEL description="Base image for Claude Code agent containers"
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    python3 \
+    python3-pip \
+    python3-venv \
+    jq \
+    uuid-runtime \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment for Python packages
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Install Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
+# Create non-root user for security
+RUN useradd -m -s /bin/bash agent && \
+    mkdir -p /workspace /lib /agent-config && \
+    chown -R agent:agent /workspace /lib /agent-config
+
+# Copy library code
+COPY --chown=agent:agent lib/ /lib/
+
+# Copy entrypoint script
+COPY --chown=agent:agent scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Set working directory
+WORKDIR /workspace
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/lib
+ENV AGENT_ROLE=worker
+ENV REDIS_URL=redis://message-broker:6379
+
+# Switch to non-root user
+USER agent
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 /lib/health_check.py || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]

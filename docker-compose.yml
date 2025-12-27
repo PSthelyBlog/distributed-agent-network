@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # Main Orchestrator - routes tasks and spawns domain containers
+  main-orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: main-orchestrator
+    hostname: main-orchestrator
+    volumes:
+      # Agent configuration
+      - ./agents/main-orchestrator:/agent-config:ro
+      # Shared workspace for all agents
+      - ./workspace:/workspace
+      # Docker socket for spawning domain containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Domain templates for spawning
+      - ./agents/domain-templates:/domain-templates:ro
+      # Library code (mounted for development)
+      - ./lib:/lib:ro
+    environment:
+      - AGENT_ROLE=main
+      - AGENT_ID=main-orchestrator
+      - REDIS_URL=redis://message-broker:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      message-broker:
+        condition: service_healthy
+    networks:
+      - agent-network
+    restart: unless-stopped
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  # Redis Message Broker - handles inter-agent communication
+  message-broker:
+    image: redis:7-alpine
+    container_name: message-broker
+    hostname: message-broker
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - agent-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # Redis Commander - Web UI for debugging Redis (optional)
+  redis-ui:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-ui
+    hostname: redis-ui
+    environment:
+      - REDIS_HOSTS=local:message-broker:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      message-broker:
+        condition: service_healthy
+    networks:
+      - agent-network
+    restart: unless-stopped
+    profiles:
+      - debug
+
+# Named volumes
+volumes:
+  redis-data:
+    driver: local
+
+# Network configuration
+networks:
+  agent-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

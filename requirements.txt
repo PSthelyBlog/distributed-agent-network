@@ -1,0 +1,19 @@
+# Redis client
+redis>=5.0.0
+
+# Docker SDK for Python (domain spawning)
+docker>=7.0.0
+
+# Data validation
+pydantic>=2.5.0
+
+# Async support
+asyncio-redis>=0.16.0
+
+# Utilities
+python-dotenv>=1.0.0
+uuid>=1.30
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
