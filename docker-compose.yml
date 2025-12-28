@@ -58,6 +58,105 @@ services:
       retries: 5
       start_period: 5s
 
+  # Backend Domain Orchestrator
+  backend-domain:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: backend-domain
+    hostname: backend-domain
+    volumes:
+      - ./agents/domain-templates/backend:/agent-config:ro
+      - ./workspace:/workspace
+      - ./lib:/app/lib:ro
+    environment:
+      - AGENT_ROLE=domain
+      - AGENT_ID=backend-domain
+      - DOMAIN_TYPE=backend
+      - REDIS_URL=redis://message-broker:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PYTHONPATH=/app
+    depends_on:
+      message-broker:
+        condition: service_healthy
+    networks:
+      - agent-network
+    restart: unless-stopped
+    profiles:
+      - backend
+      - domains
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Frontend Domain Orchestrator
+  frontend-domain:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: frontend-domain
+    hostname: frontend-domain
+    volumes:
+      - ./agents/domain-templates/frontend:/agent-config:ro
+      - ./workspace:/workspace
+      - ./lib:/app/lib:ro
+    environment:
+      - AGENT_ROLE=domain
+      - AGENT_ID=frontend-domain
+      - DOMAIN_TYPE=frontend
+      - REDIS_URL=redis://message-broker:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PYTHONPATH=/app
+    depends_on:
+      message-broker:
+        condition: service_healthy
+    networks:
+      - agent-network
+    restart: unless-stopped
+    profiles:
+      - frontend
+      - domains
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # DevOps Domain Orchestrator
+  devops-domain:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: devops-domain
+    hostname: devops-domain
+    volumes:
+      - ./agents/domain-templates/devops:/agent-config:ro
+      - ./workspace:/workspace
+      - ./lib:/app/lib:ro
+    environment:
+      - AGENT_ROLE=domain
+      - AGENT_ID=devops-domain
+      - DOMAIN_TYPE=devops
+      - REDIS_URL=redis://message-broker:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PYTHONPATH=/app
+    depends_on:
+      message-broker:
+        condition: service_healthy
+    networks:
+      - agent-network
+    restart: unless-stopped
+    profiles:
+      - devops
+      - domains
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
   # Redis Commander - Web UI for debugging Redis (optional)
   redis-ui:
     image: rediscommander/redis-commander:latest

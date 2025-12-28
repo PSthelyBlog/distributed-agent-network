@@ -141,6 +141,7 @@ class DomainSpawner:
             "DOMAIN_TYPE": domain_type,
             "REDIS_URL": config.redis_url,
             "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),
+            "PYTHONPATH": "/app",
         }
 
         # Labels for container identification
@@ -192,7 +193,7 @@ class DomainSpawner:
             },
             # Library code
             os.path.join(project_root, "lib"): {
-                "bind": "/lib",
+                "bind": "/app/lib",
                 "mode": "ro",
             },
         }
