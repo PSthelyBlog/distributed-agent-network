@@ -72,16 +72,38 @@ cp .env.example .env
 
 ### 3. Start the Network
 
+There are two ways to run the network:
+
+**Option A: With Domain Orchestrators (Recommended for automation)**
+
 ```bash
-# Build and start containers
+# Build containers
 docker compose build
-docker compose up -d
+
+# Start with specific domain(s)
+docker compose --profile backend up -d      # Backend domain only
+docker compose --profile frontend up -d     # Frontend domain only
+docker compose --profile devops up -d       # DevOps domain only
+docker compose --profile domains up -d      # All domains
 
 # Verify services are running
 docker compose ps
 ```
 
+**Option B: Interactive Mode (Main orchestrator spawns domains on demand)**
+
+```bash
+# Build and start core services only
+docker compose build
+docker compose up -d
+
+# Connect to main orchestrator interactively
+docker exec -it main-orchestrator claude --dangerously-skip-permissions
+```
+
 ### 4. Submit a Task
+
+**Direct to domain orchestrator** (requires domain to be running via `--profile`):
 
 ```bash
 # Simple task
@@ -90,8 +112,17 @@ docker compose ps
 # With options
 ./scripts/send-task.sh frontend "Build login form" --priority high --wait
 
-# Multi-domain task (routed by main orchestrator)
-./scripts/send-task.sh main "Create user registration with API endpoint and form component"
+# Check task status
+docker exec message-broker redis-cli HGETALL results:<task-id>
+```
+
+**Via interactive main orchestrator** (Option B above):
+
+```bash
+# Connect to main orchestrator
+docker exec -it main-orchestrator claude --dangerously-skip-permissions
+
+# Then describe your task to Claude - it will spawn domains as needed
 ```
 
 ### 5. Monitor Progress
@@ -120,7 +151,8 @@ distributed-agent-network/
 │   ├── messaging.py      # Redis pub/sub, task queues
 │   ├── registry.py       # Agent registration, health monitoring
 │   ├── health_check.py   # Container health checks
-│   └── spawner.py        # Docker container management
+│   ├── spawner.py        # Docker container management
+│   └── domain_runner.py  # Domain task queue listener
 ├── agents/
 │   ├── main-orchestrator/
 │   │   ├── CLAUDE.md     # Main orchestrator instructions
@@ -302,21 +334,27 @@ sudo usermod -aG docker $USER
 
 **Task stuck in pending**
 ```bash
+# Tasks require a domain orchestrator to be running
+# Start the appropriate domain:
+docker compose --profile backend up -d
+
 # Check if domain orchestrator is running
 docker compose ps
+
 # Check domain logs
-./scripts/tail-logs.sh --domains
+docker compose logs backend-domain
 ```
 
 ### Debugging
 
 ```bash
-# Inspect Redis queues
-redis-cli LRANGE tasks:pending:backend 0 -1
-redis-cli HGETALL results:<task-id>
+# Inspect Redis queues (via docker if redis-cli not installed locally)
+docker exec message-broker redis-cli LRANGE tasks:pending:backend 0 -1
+docker exec message-broker redis-cli HGETALL results:<task-id>
 
 # View container logs
 docker compose logs main-orchestrator
+docker compose logs backend-domain
 docker compose logs -f  # Follow all logs
 
 # Redis Commander UI
