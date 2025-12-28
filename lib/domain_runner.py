@@ -173,14 +173,19 @@ class DomainRunner:
         }
 
         try:
-            # Run claude with the prompt via stdin
+            # Run claude with the prompt via stdin (safer for multi-line prompts)
             process = subprocess.Popen(
-                ["claude", "--dangerously-skip-permissions", "-p", prompt],
+                ["claude", "--dangerously-skip-permissions", "-p", "--output-format", "text"],
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 cwd="/workspace",
                 env={**os.environ, "CLAUDE_CODE_ENTRYPOINT": "domain-runner"},
             )
+
+            # Send prompt via stdin
+            process.stdin.write(prompt.encode("utf-8"))
+            process.stdin.close()
 
             # Stream output and log it
             output_lines = []
