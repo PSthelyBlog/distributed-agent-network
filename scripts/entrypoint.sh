@@ -160,14 +160,15 @@ main() {
 
     case "$AGENT_ROLE" in
         "main")
-            log_info "Starting Main Orchestrator..."
-            # Main orchestrator runs Claude Code interactively
-            exec claude --dangerously-skip-permissions
+            log_info "Main Orchestrator ready for interactive use"
+            log_info "Connect with: docker exec -it main-orchestrator claude --dangerously-skip-permissions"
+            # Keep container running for interactive sessions
+            tail -f /dev/null
             ;;
         "domain")
             log_info "Starting Domain Orchestrator for: ${DOMAIN_TYPE}"
             # Domain orchestrator listens for tasks and processes them
-            python3 /lib/domain_runner.py
+            python3 /app/lib/domain_runner.py
             ;;
         "worker")
             log_info "Starting Worker agent..."

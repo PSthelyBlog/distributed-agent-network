@@ -28,11 +28,11 @@ RUN npm install -g @anthropic-ai/claude-code
 
 # Create non-root user for security
 RUN useradd -m -s /bin/bash agent && \
-    mkdir -p /workspace /lib /agent-config && \
-    chown -R agent:agent /workspace /lib /agent-config
+    mkdir -p /workspace /app/lib /agent-config && \
+    chown -R agent:agent /workspace /app/lib /agent-config
 
 # Copy library code
-COPY --chown=agent:agent lib/ /lib/
+COPY --chown=agent:agent lib/ /app/lib/
 
 # Copy entrypoint script
 COPY --chown=agent:agent scripts/entrypoint.sh /entrypoint.sh
@@ -43,7 +43,7 @@ WORKDIR /workspace
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/lib
+ENV PYTHONPATH=/app
 ENV AGENT_ROLE=worker
 ENV REDIS_URL=redis://message-broker:6379
 
@@ -52,6 +52,6 @@ USER agent
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 /lib/health_check.py || exit 1
+    CMD python3 /app/lib/health_check.py || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]

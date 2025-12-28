@@ -18,12 +18,13 @@ services:
       # Domain templates for spawning
       - ./agents/domain-templates:/domain-templates:ro
       # Library code (mounted for development)
-      - ./lib:/lib:ro
+      - ./lib:/app/lib:ro
     environment:
       - AGENT_ROLE=main
       - AGENT_ID=main-orchestrator
       - REDIS_URL=redis://message-broker:6379
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PYTHONPATH=/app
     depends_on:
       message-broker:
         condition: service_healthy

@@ -83,23 +83,34 @@ log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
+# Redis CLI wrapper - uses docker exec if local redis-cli unavailable
+redis_cli() {
+    if command -v redis-cli &> /dev/null; then
+        redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" "$@"
+    else
+        docker exec message-broker redis-cli "$@"
+    fi
+}
+
 # Check if Redis is available
 check_redis() {
-    if ! command -v redis-cli &> /dev/null; then
-        log_error "redis-cli not found. Please install Redis tools."
-        exit 1
-    fi
-
     # Extract host and port from URL
-    local redis_host
-    local redis_port
-    redis_host=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\1|')
-    redis_port=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\2|')
+    REDIS_HOST=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\1|')
+    REDIS_PORT=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\2|')
 
-    if ! redis-cli -h "$redis_host" -p "$redis_port" ping &> /dev/null; then
-        log_error "Cannot connect to Redis at $REDIS_URL"
-        log_info "Start Redis with: docker compose up -d message-broker"
-        exit 1
+    if command -v redis-cli &> /dev/null; then
+        if ! redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" ping &> /dev/null; then
+            log_error "Cannot connect to Redis at $REDIS_URL"
+            log_info "Start Redis with: docker compose up -d message-broker"
+            exit 1
+        fi
+    else
+        log_info "Using redis-cli via docker exec..."
+        if ! docker exec message-broker redis-cli ping &> /dev/null; then
+            log_error "Cannot connect to Redis via docker exec"
+            log_info "Start Redis with: docker compose up -d message-broker"
+            exit 1
+        fi
     fi
 }
 
@@ -144,22 +155,16 @@ publish_task() {
 EOF
 )
 
-    # Extract host and port
-    local redis_host
-    local redis_port
-    redis_host=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\1|')
-    redis_port=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\2|')
-
     # Push to queue
-    redis-cli -h "$redis_host" -p "$redis_port" LPUSH "tasks:pending:$domain" "$task_json" > /dev/null
+    redis_cli LPUSH "tasks:pending:$domain" "$task_json" > /dev/null
 
     # Initialize result tracking
-    redis-cli -h "$redis_host" -p "$redis_port" HSET "results:$task_id" \
+    redis_cli HSET "results:$task_id" \
         "task_id" "$task_id" \
         "status" "pending" > /dev/null
 
     # Publish notification
-    redis-cli -h "$redis_host" -p "$redis_port" PUBLISH "notifications:$domain" "$task_json" > /dev/null
+    redis_cli PUBLISH "notifications:$domain" "$task_json" > /dev/null
 
     echo "$task_id"
 }
@@ -172,23 +177,17 @@ wait_for_result() {
     local interval=2
     local status
 
-    # Extract host and port
-    local redis_host
-    local redis_port
-    redis_host=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\1|')
-    redis_port=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\2|')
-
     log_info "Waiting for task completion (timeout: ${timeout}s)..."
 
     while [ $elapsed -lt "$timeout" ]; do
-        status=$(redis-cli -h "$redis_host" -p "$redis_port" HGET "results:$task_id" "status" 2>/dev/null)
+        status=$(redis_cli HGET "results:$task_id" "status" 2>/dev/null)
 
         case "$status" in
             completed)
                 log_success "Task completed!"
                 echo ""
                 echo "Result:"
-                redis-cli -h "$redis_host" -p "$redis_port" HGETALL "results:$task_id" | \
+                redis_cli HGETALL "results:$task_id" | \
                     while IFS= read -r key; do
                         IFS= read -r value
                         printf "  %s: %s\n" "$key" "$value"
@@ -199,7 +198,7 @@ wait_for_result() {
                 log_error "Task failed!"
                 echo ""
                 echo "Error:"
-                redis-cli -h "$redis_host" -p "$redis_port" HGET "results:$task_id" "error"
+                redis_cli HGET "results:$task_id" "error"
                 return 1
                 ;;
             in_progress)
@@ -223,15 +222,9 @@ wait_for_result() {
 get_status() {
     local task_id="$1"
 
-    # Extract host and port
-    local redis_host
-    local redis_port
-    redis_host=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\1|')
-    redis_port=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):([0-9]+).*|\2|')
-
     echo "Task: $task_id"
     echo "Status:"
-    redis-cli -h "$redis_host" -p "$redis_port" HGETALL "results:$task_id" | \
+    redis_cli HGETALL "results:$task_id" | \
         while IFS= read -r key; do
             IFS= read -r value
             printf "  %s: %s\n" "$key" "$value"
